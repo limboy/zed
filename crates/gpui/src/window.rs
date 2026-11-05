@@ -1556,6 +1556,8 @@ impl Window {
                 icon,
                 #[cfg(target_os = "macos")]
                 tabbing_identifier,
+                #[cfg(target_os = "macos")]
+                maximized: matches!(window_bounds, WindowBounds::Maximized(_)),
             },
         )?;
 
@@ -1588,7 +1590,12 @@ impl Window {
 
         match window_bounds {
             WindowBounds::Fullscreen(_) => platform_window.toggle_fullscreen(),
-            WindowBounds::Maximized(_) => platform_window.zoom(),
+            // A platform that zoomed the window while opening it has nothing
+            // left to do; zooming again would toggle it back out.
+            WindowBounds::Maximized(_) if !platform_window.is_maximized() => {
+                platform_window.zoom()
+            }
+            WindowBounds::Maximized(_) => {}
             WindowBounds::Windowed(_) => {}
         }
 

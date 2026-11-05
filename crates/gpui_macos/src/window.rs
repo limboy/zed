@@ -848,6 +848,7 @@ impl MacWindow {
             display_id,
             window_min_size,
             tabbing_identifier,
+            maximized,
             ..
         }: WindowParams,
         cursor_visible: Arc<AtomicBool>,
@@ -1165,6 +1166,17 @@ impl MacWindow {
                 }
             }
 
+            // A window restored as maximized is placed at its restore frame
+            // and zoomed while still ordered out: AppKit records that frame
+            // as the one to unzoom to, and the zoom neither animates nor
+            // shows the restore frame first. Zooming toggles, so it must run
+            // exactly once — `Window::new` skips its own zoom when this one
+            // took.
+            if maximized {
+                NSWindow::setFrameTopLeftPoint_(native_window, window_rect.origin);
+                native_window.zoom_(nil);
+            }
+
             if focus && show {
                 native_window.makeKeyAndOrderFront_(nil);
             } else if show {
@@ -1175,7 +1187,9 @@ impl MacWindow {
             // Although we already specified the position using `initWithContentRect_styleMask_backing_defer_screen_`,
             // the window position might be incorrect if the main screen (the screen that contains the window that has focus)
             //  is different from the primary screen.
-            NSWindow::setFrameTopLeftPoint_(native_window, window_rect.origin);
+            if !maximized {
+                NSWindow::setFrameTopLeftPoint_(native_window, window_rect.origin);
+            }
             {
                 let mut window_state = window.0.lock();
                 window_state.move_traffic_light();

@@ -1952,6 +1952,12 @@ pub struct WindowParams {
 
     #[cfg(target_os = "macos")]
     pub tabbing_identifier: Option<String>,
+
+    /// Open the window zoomed to fill its display, with `bounds` as the frame
+    /// it restores to. macOS zooms before ordering the window in, so it never
+    /// shows its restore frame or animates the zoom.
+    #[cfg(target_os = "macos")]
+    pub maximized: bool,
 }
 
 /// Represents the status of how a window should be opened.
