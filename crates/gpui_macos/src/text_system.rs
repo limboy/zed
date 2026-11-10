@@ -543,8 +543,8 @@ impl MacTextSystemState {
                 );
 
             if native_dark_smoothing {
-                // Black on white: coverage is the inverted green channel.
-                drop(cx);
+                // Black on white: coverage is the inverted green channel. The
+                // context was consumed by `draw_glyphs`, so the buffer is free.
                 let coverage = bytes.chunks_exact(4).map(|pixel| 255 - pixel[1]).collect();
                 return Ok((bitmap_size, coverage));
             }
