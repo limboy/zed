@@ -224,6 +224,12 @@ impl PlatformTextSystem for MacTextSystem {
         }
         let rgba: Rgba = color.into();
         let luminance = 0.2126 * rgba.r + 0.7152 * rgba.g + 0.0722 * rgba.b;
+        // Smoothing only helps light text on a dark surface. Mid greys are
+        // secondary text on light surfaces, where it would make them heavier
+        // than the plain-antialiased body text around them.
+        if luminance < 0.6 {
+            return 0;
+        }
         let level = ((4.0 * luminance) + 0.5).floor() as i32;
         level.clamp(0, 4) as u8
     }
