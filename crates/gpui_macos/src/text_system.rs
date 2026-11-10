@@ -13,6 +13,7 @@ use core_graphics::{
     color_space::CGColorSpace,
     context::{CGContext, CGTextDrawingMode},
     display::CGPoint,
+    geometry::{CGRect, CGSize},
 };
 use core_text::{
     font::CTFont,
@@ -452,8 +453,17 @@ impl MacTextSystemState {
             let bitmap_size = bitmap_size;
 
             let mut bytes;
+            // Dark text gets no dilation level, but CoreGraphics still smooths it when
+            // drawn the native way: onto an opaque light surface, where smoothing
+            // thickens dark strokes. An alpha-only context skips that, which made dark
+            // text visibly lighter than in AppKit or WebKit. Rasterize it like AppKit
+            // does, black on white, and use the inverted channel as coverage.
+            let native_dark_smoothing = !params.is_emoji
+                && params.dilation == 0
+                && font_smoothing_allowed_by_user();
+
             let cx;
-            if params.is_emoji {
+            if params.is_emoji || native_dark_smoothing {
                 bytes = vec![0; bitmap_size.width.0 as usize * 4 * bitmap_size.height.0 as usize];
                 cx = CGContext::create_bitmap_context(
                     Some(bytes.as_mut_ptr() as *mut _),
@@ -475,6 +485,17 @@ impl MacTextSystemState {
                     &CGColorSpace::create_device_gray(),
                     kCGImageAlphaOnly,
                 );
+            }
+
+            if native_dark_smoothing {
+                cx.set_rgb_fill_color(1.0, 1.0, 1.0, 1.0);
+                cx.fill_rect(CGRect::new(
+                    &CGPoint::new(0.0, 0.0),
+                    &CGSize::new(
+                        bitmap_size.width.0 as CGFloat,
+                        bitmap_size.height.0 as CGFloat,
+                    ),
+                ));
             }
 
             // Move the origin to bottom left and account for scaling, this
@@ -499,7 +520,10 @@ impl MacTextSystemState {
             cx.set_allows_font_subpixel_quantization(false);
             cx.set_should_subpixel_quantize_fonts(false);
 
-            if params.dilation > 0 {
+            if native_dark_smoothing {
+                cx.set_should_smooth_fonts(true);
+                cx.set_rgb_fill_color(0.0, 0.0, 0.0, 1.0);
+            } else if params.dilation > 0 {
                 let luminance = params.dilation as f64 * 0.25;
                 cx.set_should_smooth_fonts(true);
                 cx.set_gray_fill_color(luminance, 1.0);
@@ -517,6 +541,13 @@ impl MacTextSystemState {
                     )],
                     cx,
                 );
+
+            if native_dark_smoothing {
+                // Black on white: coverage is the inverted green channel.
+                drop(cx);
+                let coverage = bytes.chunks_exact(4).map(|pixel| 255 - pixel[1]).collect();
+                return Ok((bitmap_size, coverage));
+            }
 
             if params.is_emoji {
                 // Convert from RGBA with premultiplied alpha to BGRA with straight alpha.
