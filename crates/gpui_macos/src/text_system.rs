@@ -504,6 +504,10 @@ impl MacTextSystemState {
                 cx.set_should_smooth_fonts(true);
                 cx.set_gray_fill_color(luminance, 1.0);
             } else {
+                // Bitmap contexts smooth fonts by default, which thickens dark glyphs
+                // by ~17%. Turn it off explicitly so dark text gets plain grayscale
+                // antialiasing, matching browsers' `-webkit-font-smoothing: antialiased`.
+                cx.set_should_smooth_fonts(false);
                 cx.set_gray_fill_color(0.0, 1.0);
             }
             self.fonts[params.font_id.0]
