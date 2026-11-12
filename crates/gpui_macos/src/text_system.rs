@@ -224,12 +224,6 @@ impl PlatformTextSystem for MacTextSystem {
         }
         let rgba: Rgba = color.into();
         let luminance = 0.2126 * rgba.r + 0.7152 * rgba.g + 0.0722 * rgba.b;
-        // Smoothing only helps light text on a dark surface. Mid greys are
-        // secondary text on light surfaces, where it would make them heavier
-        // than the plain-antialiased body text around them.
-        if luminance < 0.6 {
-            return 0;
-        }
         let level = ((4.0 * luminance) + 0.5).floor() as i32;
         level.clamp(0, 4) as u8
     }
@@ -505,14 +499,14 @@ impl MacTextSystemState {
             cx.set_allows_font_subpixel_quantization(false);
             cx.set_should_subpixel_quantize_fonts(false);
 
-            if params.dilation > 0 {
+            // Smooth every glyph, as AppKit does. CoreGraphics thickens dark
+            // strokes on light surfaces too; without that stem darkening,
+            // light-mode text reads noticeably thinner than native controls.
+            if font_smoothing_allowed_by_user() {
                 let luminance = params.dilation as f64 * 0.25;
                 cx.set_should_smooth_fonts(true);
                 cx.set_gray_fill_color(luminance, 1.0);
             } else {
-                // Bitmap contexts smooth fonts by default, which thickens dark glyphs
-                // by ~17%. Turn it off explicitly so dark text gets plain grayscale
-                // antialiasing, matching browsers' `-webkit-font-smoothing: antialiased`.
                 cx.set_should_smooth_fonts(false);
                 cx.set_gray_fill_color(0.0, 1.0);
             }
